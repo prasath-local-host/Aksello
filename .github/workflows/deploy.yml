@@ -43,7 +43,7 @@ jobs:
 
       - name: Install backend dependencies
         working-directory: backend
-        run: npm ci
+        run: npm install
 
       - name: Type-check backend
         working-directory: backend
@@ -52,7 +52,7 @@ jobs:
       # ── Frontend ─────────────────────────────────────────────────────────────
       - name: Install frontend dependencies
         working-directory: frontend
-        run: npm ci
+        run: npm install
 
       - name: Type-check frontend
         working-directory: frontend
