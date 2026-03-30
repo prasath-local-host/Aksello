@@ -95,7 +95,7 @@ jobs:
 
       - name: Health check — frontend
         run: |
-          curl --fail --retry 5 --retry-delay 3 http://localhost:3001
+          curl --fail --retry 5 --retry-delay 3 http://localhost:3000
 
       - name: API smoke test — list tasks
         run: |
@@ -164,3 +164,32 @@ jobs:
           tags: ${{ steps.meta-frontend.outputs.tags }}
           build-args: |
             NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}
+
+  # ─── Job 3: Deploy to production (main branch only) ───────────────────────
+  deploy:
+    name: Deploy
+    runs-on: self-hosted
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create .env file
+        run: |
+          echo "DB_USER=todo_user" > .env
+          echo "DB_PASSWORD=todo_password" >> .env
+          echo "DB_NAME=todo_db" >> .env
+
+      - name: Stop existing containers
+        run: docker compose down --remove-orphans 2>/dev/null || true
+
+      - name: Start containers
+        run: docker compose up -d --build
+
+      - name: Verify running
+        run: |
+          sleep 10
+          curl --fail http://localhost:3000/
+          echo "App is live at http://10.0.32.115:3000"
