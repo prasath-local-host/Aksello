@@ -97,7 +97,11 @@ jobs:
 
       - name: Tear down
         if: always()
-        run: docker compose down -v
+        run: |
+          echo "DB_USER=todo_user" >> .env
+          echo "DB_PASSWORD=todo_password" >> .env
+          echo "DB_NAME=todo_db" >> .env
+          docker compose down -v
 
   # ─── Job 2: Push images to GHCR (main branch only) ────────────────────────
   push-images:
