@@ -14,7 +14,7 @@ jobs:
   # ─── Job 1: Build & test ───────────────────────────────────────────────────
   build-and-test:
     name: Build & test
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     services:
       postgres:
@@ -112,7 +112,7 @@ jobs:
   # ─── Job 2: Push images to GHCR (main branch only) ────────────────────────
   push-images:
     name: Push images to registry
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: build-and-test
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
