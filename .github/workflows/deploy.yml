@@ -1,0 +1,150 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}
+
+jobs:
+  # ─── Job 1: Build & test ───────────────────────────────────────────────────
+  build-and-test:
+    name: Build & test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: todo_user
+          POSTGRES_PASSWORD: todo_password
+          POSTGRES_DB: todo_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ── Backend ──────────────────────────────────────────────────────────────
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Type-check backend
+        working-directory: backend
+        run: npx tsc --noEmit
+
+      # ── Frontend ─────────────────────────────────────────────────────────────
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Type-check frontend
+        working-directory: frontend
+        run: npx tsc --noEmit
+
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:4000
+        run: npm run build
+
+      # ── Docker build smoke test ───────────────────────────────────────────────
+      - name: Build Docker images
+        run: |
+          docker compose build
+
+      - name: Start services
+        run: |
+          cp .env.example .env
+          docker compose up -d
+          sleep 10
+
+      - name: Health check — backend
+        run: |
+          curl --fail --retry 5 --retry-delay 3 http://localhost:4000/health
+
+      - name: Health check — frontend
+        run: |
+          curl --fail --retry 5 --retry-delay 3 http://localhost:3000
+
+      - name: API smoke test — list tasks
+        run: |
+          curl --fail http://localhost:4000/api/tasks
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
+
+  # ─── Job 2: Push images to GHCR (main branch only) ────────────────────────
+  push-images:
+    name: Push images to registry
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata — backend
+        id: meta-backend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_PREFIX }}/todo-backend
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest
+
+      - name: Extract metadata — frontend
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_PREFIX }}/todo-frontend
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest
+
+      - name: Build & push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          tags: ${{ steps.meta-backend.outputs.tags }}
+
+      - name: Build & push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}
