@@ -83,18 +83,14 @@ jobs:
         run: |
           docker compose build
 
-      - name: Start services
-        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d
-
       - name: Health check — backend
-        run: docker exec todo_backend curl --fail --retry 5 --retry-delay 3 http://localhost:4000/health
+        run: docker exec todo_backend wget -qO- --tries=5 http://localhost:4000/health
 
       - name: Health check — frontend
-        run: docker exec todo_frontend curl --fail --retry 5 --retry-delay 3 http://localhost:3000
+        run: docker exec todo_frontend wget -qO- --tries=5 http://localhost:3000
 
       - name: API smoke test — list tasks
-        run: docker exec todo_backend curl --fail http://localhost:4000/api/tasks
-
+        run: docker exec todo_backend wget -qO- http://localhost:4000/api/tasks
       - name: Tear down
         if: always()
         run: |
