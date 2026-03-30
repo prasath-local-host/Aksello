@@ -1,0 +1,7 @@
+services:
+  db:
+    ports: []
+  backend:
+    ports: []
+  frontend:
+    ports: []

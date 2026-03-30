@@ -84,22 +84,16 @@ jobs:
           docker compose build
 
       - name: Start services
-        run: |
-          cp .env.example .env
-          docker compose up -d
-          sleep 10
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d
 
       - name: Health check — backend
-        run: |
-          curl --fail --retry 5 --retry-delay 3 http://localhost:4000/health
+        run: docker exec todo_backend curl --fail --retry 5 --retry-delay 3 http://localhost:4000/health
 
       - name: Health check — frontend
-        run: |
-          curl --fail --retry 5 --retry-delay 3 http://localhost:3000
+        run: docker exec todo_frontend curl --fail --retry 5 --retry-delay 3 http://localhost:3000
 
       - name: API smoke test — list tasks
-        run: |
-          curl --fail http://localhost:4000/api/tasks
+        run: docker exec todo_backend curl --fail http://localhost:4000/api/tasks
 
       - name: Tear down
         if: always()
@@ -107,7 +101,7 @@ jobs:
           echo "DB_USER=todo_user" >> .env
           echo "DB_PASSWORD=todo_password" >> .env
           echo "DB_NAME=todo_db" >> .env
-          docker compose down -v
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml down -v --remove-orphans
 
   # ─── Job 2: Push images to GHCR (main branch only) ────────────────────────
   push-images:
