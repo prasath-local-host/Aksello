@@ -65,7 +65,13 @@ jobs:
         env:
           NEXT_PUBLIC_API_URL: http://localhost:4000
         run: npm run build
-
+      
+      # ── Create .env file ───────────────────────────────────────────────
+      - name: Create .env file
+        run: |
+          echo "DB_USER=todo_user" >> .env
+          echo "DB_PASSWORD=todo_password" >> .env
+          echo "DB_NAME=todo_db" >> .env
       # ── Docker build smoke test ───────────────────────────────────────────────
       - name: Build Docker images
         run: |
