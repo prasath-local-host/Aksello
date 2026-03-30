@@ -24,7 +24,7 @@ jobs:
           POSTGRES_PASSWORD: todo_password
           POSTGRES_DB: todo_db
         ports:
-          - 5432:5432
+          - 5433:5432
         options: >-
           --health-cmd pg_isready
           --health-interval 5s
@@ -34,6 +34,14 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Clean up previous run
+        run: |
+          docker compose down -v --remove-orphans 2>/dev/null || true
+          echo "DB_USER=todo_user" >> .env
+          echo "DB_PASSWORD=todo_password" >> .env
+          echo "DB_NAME=todo_db" >> .env
+          docker compose down -v --remove-orphans 2>/dev/null || true
 
       # ── Backend ──────────────────────────────────────────────────────────────
       - name: Set up Node.js
