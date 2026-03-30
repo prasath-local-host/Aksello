@@ -11,25 +11,9 @@ env:
   IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}
 
 jobs:
-  # ─── Job 1: Build & test ───────────────────────────────────────────────────
   build-and-test:
     name: Build & test
     runs-on: self-hosted
-
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: todo_user
-          POSTGRES_PASSWORD: todo_password
-          POSTGRES_DB: todo_db
-        ports:
-          - 5433:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 5
 
     steps:
       - name: Checkout code
@@ -37,13 +21,11 @@ jobs:
 
       - name: Clean up previous run
         run: |
-          docker compose down -v --remove-orphans 2>/dev/null || true
-          echo "DB_USER=todo_user" >> .env
+          echo "DB_USER=todo_user" > .env
           echo "DB_PASSWORD=todo_password" >> .env
           echo "DB_NAME=todo_db" >> .env
-          docker compose down -v --remove-orphans 2>/dev/null || true
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml down -v --remove-orphans 2>/dev/null || true
 
-      # ── Backend ──────────────────────────────────────────────────────────────
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -57,7 +39,6 @@ jobs:
         working-directory: backend
         run: npx tsc --noEmit
 
-      # ── Frontend ─────────────────────────────────────────────────────────────
       - name: Install frontend dependencies
         working-directory: frontend
         run: npm install
@@ -71,35 +52,35 @@ jobs:
         env:
           NEXT_PUBLIC_API_URL: http://localhost:4000
         run: npm run build
-      
-      # ── Create .env file ───────────────────────────────────────────────
-      - name: Create .env file
-        run: |
-          echo "DB_USER=todo_user" >> .env
-          echo "DB_PASSWORD=todo_password" >> .env
-          echo "DB_NAME=todo_db" >> .env
-      # ── Docker build smoke test ───────────────────────────────────────────────
+
       - name: Build Docker images
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml build
+
+      - name: Start services
         run: |
-          docker compose build
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d
+          sleep 15
+
+      - name: Show running containers
+        run: docker ps
 
       - name: Health check — backend
-        run: docker exec aksello-backend wget -qO- --tries=5 http://localhost:4000/health
+        run: docker exec todo_backend wget -qO- --tries=5 http://localhost:4000/health
 
       - name: Health check — frontend
-        run: docker exec aksello-frontend wget -qO- --tries=5 http://localhost:3000
+        run: docker exec todo_frontend wget -qO- --tries=5 http://localhost:3000
 
       - name: API smoke test — list tasks
-        run: docker exec aksello-backend wget -qO- http://localhost:4000/api/tasks
+        run: docker exec todo_backend wget -qO- http://localhost:4000/api/tasks
+
       - name: Tear down
         if: always()
         run: |
-          echo "DB_USER=todo_user" >> .env
+          echo "DB_USER=todo_user" > .env
           echo "DB_PASSWORD=todo_password" >> .env
           echo "DB_NAME=todo_db" >> .env
           docker compose -f docker-compose.yml -f docker-compose.ci.yml down -v --remove-orphans
 
-  # ─── Job 2: Push images to GHCR (main branch only) ────────────────────────
   push-images:
     name: Push images to registry
     runs-on: self-hosted
@@ -155,11 +136,10 @@ jobs:
           build-args: |
             NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}
 
-  # ─── Job 3: Deploy to production (main branch only) ───────────────────────
   deploy:
     name: Deploy
     runs-on: self-hosted
-    needs: build-and-test
+    needs: [build-and-test, push-images]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     steps:
