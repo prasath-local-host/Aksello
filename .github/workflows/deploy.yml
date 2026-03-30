@@ -84,13 +84,13 @@ jobs:
           docker compose build
 
       - name: Health check — backend
-        run: docker exec alsello_backend wget -qO- --tries=5 http://localhost:4000/health
+        run: docker exec aksello_backend wget -qO- --tries=5 http://localhost:4000/health
 
       - name: Health check — frontend
-        run: docker exec alsello_frontend wget -qO- --tries=5 http://localhost:3000
+        run: docker exec aksello_frontend wget -qO- --tries=5 http://localhost:3000
 
       - name: API smoke test — list tasks
-        run: docker exec alsello_backend wget -qO- http://localhost:4000/api/tasks
+        run: docker exec aksello_backend wget -qO- http://localhost:4000/api/tasks
       - name: Tear down
         if: always()
         run: |
