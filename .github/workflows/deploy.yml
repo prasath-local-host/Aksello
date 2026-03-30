@@ -95,7 +95,7 @@ jobs:
 
       - name: Health check — frontend
         run: |
-          curl --fail --retry 5 --retry-delay 3 http://localhost:3000
+          curl --fail --retry 5 --retry-delay 3 http://localhost:3001
 
       - name: API smoke test — list tasks
         run: |
